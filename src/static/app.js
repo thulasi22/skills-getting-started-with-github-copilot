@@ -4,6 +4,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  // Helper: get initials from a name or email
+  function getInitials(text) {
+    if (!text) return "?";
+    const name = String(text).trim();
+    // if email, use part before @
+    const local = name.includes("@") ? name.split("@")[0] : name;
+    const parts = local.split(/[\s._-]+/).filter(Boolean);
+    if (parts.length === 0) return name.slice(0, 1).toUpperCase();
+    if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+    return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
+  }
+
+  // Helper: simple HTML escape for participant strings
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
@@ -20,14 +42,72 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // Build participants HTML
+        let participantsHtml = "";
+        if (details.participants && details.participants.length > 0) {
+          participantsHtml = `<ul class="participant-list">` +
+            details.participants.map(p => {
+              const initials = getInitials(p);
+              // add data-email attribute and a delete button
+              return `<li class="participant-item" data-email="${escapeHtml(p)}"><span class="avatar">${escapeHtml(initials)}</span><span class="participant-name">${escapeHtml(p)}</span><button class="btn-delete" title="Remove participant" aria-label="Remove ${escapeHtml(p)}">&times;</button></li>`;
+            }).join("") +
+            `</ul>`;
+        } else {
+          participantsHtml = `<p class="no-participants">No participants yet</p>`;
+        }
+
         activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
+          <h4>${escapeHtml(name)}</h4>
+          <p>${escapeHtml(details.description)}</p>
+          <p><strong>Schedule:</strong> ${escapeHtml(details.schedule)}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+
+          <div class="participants-section">
+            <h5>Participants</h5>
+            ${participantsHtml}
+          </div>
         `;
 
         activitiesList.appendChild(activityCard);
+
+          // Attach click listeners for delete buttons (delegation-friendly)
+          const participantList = activityCard.querySelector('.participant-list');
+          if (participantList) {
+            participantList.addEventListener('click', async (e) => {
+              const btn = e.target.closest('.btn-delete');
+              if (!btn) return;
+              const li = btn.closest('.participant-item');
+              if (!li) return;
+              const email = li.getAttribute('data-email');
+
+              if (!confirm(`Unregister ${email} from ${name}?`)) return;
+
+              try {
+                const resp = await fetch(`/activities/${encodeURIComponent(name)}/participants?email=${encodeURIComponent(email)}`, {
+                  method: 'DELETE'
+                });
+
+                const result = await resp.json();
+                if (resp.ok) {
+                  // remove from DOM
+                  li.remove();
+                  // if no more participants, replace with message
+                  const remaining = participantList.querySelectorAll('.participant-item');
+                  if (remaining.length === 0) {
+                    participantList.replaceWith(document.createElement('p'));
+                    const p = activityCard.querySelector('.participants-section p');
+                    p.className = 'no-participants';
+                    p.textContent = 'No participants yet';
+                  }
+                } else {
+                  alert(result.detail || 'Failed to unregister participant');
+                }
+              } catch (err) {
+                console.error('Error unregistering participant', err);
+                alert('Error unregistering participant');
+              }
+            });
+          }
 
         // Add option to select dropdown
         const option = document.createElement("option");
