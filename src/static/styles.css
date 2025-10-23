@@ -110,6 +110,23 @@ section h3 {
   color: #222;
 }
 
+/* Delete button beside each participant */
+.btn-delete {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #c62828;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.btn-delete:hover {
+  background: rgba(198,40,40,0.08);
+}
+
 .avatar {
   width: 34px;
   height: 34px;

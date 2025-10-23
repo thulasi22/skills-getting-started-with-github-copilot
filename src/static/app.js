@@ -48,7 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
           participantsHtml = `<ul class="participant-list">` +
             details.participants.map(p => {
               const initials = getInitials(p);
-              return `<li class="participant-item"><span class="avatar">${escapeHtml(initials)}</span><span class="participant-name">${escapeHtml(p)}</span></li>`;
+              // add data-email attribute and a delete button
+              return `<li class="participant-item" data-email="${escapeHtml(p)}"><span class="avatar">${escapeHtml(initials)}</span><span class="participant-name">${escapeHtml(p)}</span><button class="btn-delete" title="Remove participant" aria-label="Remove ${escapeHtml(p)}">&times;</button></li>`;
             }).join("") +
             `</ul>`;
         } else {
@@ -68,6 +69,45 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         activitiesList.appendChild(activityCard);
+
+          // Attach click listeners for delete buttons (delegation-friendly)
+          const participantList = activityCard.querySelector('.participant-list');
+          if (participantList) {
+            participantList.addEventListener('click', async (e) => {
+              const btn = e.target.closest('.btn-delete');
+              if (!btn) return;
+              const li = btn.closest('.participant-item');
+              if (!li) return;
+              const email = li.getAttribute('data-email');
+
+              if (!confirm(`Unregister ${email} from ${name}?`)) return;
+
+              try {
+                const resp = await fetch(`/activities/${encodeURIComponent(name)}/participants?email=${encodeURIComponent(email)}`, {
+                  method: 'DELETE'
+                });
+
+                const result = await resp.json();
+                if (resp.ok) {
+                  // remove from DOM
+                  li.remove();
+                  // if no more participants, replace with message
+                  const remaining = participantList.querySelectorAll('.participant-item');
+                  if (remaining.length === 0) {
+                    participantList.replaceWith(document.createElement('p'));
+                    const p = activityCard.querySelector('.participants-section p');
+                    p.className = 'no-participants';
+                    p.textContent = 'No participants yet';
+                  }
+                } else {
+                  alert(result.detail || 'Failed to unregister participant');
+                }
+              } catch (err) {
+                console.error('Error unregistering participant', err);
+                alert('Error unregistering participant');
+              }
+            });
+          }
 
         // Add option to select dropdown
         const option = document.createElement("option");
